@@ -1,0 +1,11 @@
+/** Or gate: if (a or b) out = 1, else out = 0 */
+
+CHIP Or {
+    IN a, b;
+    OUT out;
+
+    PARTS:
+    Nand(a=a , b=a , out=aNot );
+    Nand(a=b , b=b , out=bNot );
+    Nand(a=aNot , b=bNot , out=out );
+}
