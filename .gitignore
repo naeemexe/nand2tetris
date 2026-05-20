@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# simulator / emulator test outputs (regenerated every run)
+*.out
+
+# Python
+__pycache__/
+*.pyc
+
+# project 10 analyzer output (compared against the provided .xml files)
+projects/10/*/output/
