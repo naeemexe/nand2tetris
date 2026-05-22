@@ -11,5 +11,10 @@ CHIP Mux {
     OUT out;
 
     PARTS:
-    //// Replace this comment with your code.
+    // out = (a AND NOT sel) OR (b AND sel), built straight from Nands:
+    // the Or-of-Ands collapses into a Nand-of-Nands (De Morgan).
+    Nand(a=sel , b=sel , out=selNot );
+    Nand(a=a , b=selNot , out=aPick );
+    Nand(a=b , b=sel , out=bPick );
+    Nand(a=aPick , b=bPick , out=out );
 }
