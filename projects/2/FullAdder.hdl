@@ -11,5 +11,9 @@ CHIP FullAdder {
         carry;   // Left bit of a + b + c
 
     PARTS:
-    //// Replace this comment with your code.
+    // Two half adders in a row: first add a+b, then add c to that partial sum.
+    // At most one of the two stages can produce a carry, so Or them.
+    HalfAdder(a=a , b=b , sum=sumAB , carry=carryAB );
+    HalfAdder(a=sumAB , b=c , sum=sum , carry=carryABC );
+    Or(a=carryAB , b=carryABC , out=carry );
 }
