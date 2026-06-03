@@ -13,5 +13,8 @@ CHIP Bit {
     OUT out;
 
     PARTS:
-    //// Replace this comment with your code.
+    // A DFF only remembers for one tick. Feeding its own output back through
+    // a Mux lets us choose each tick: keep the old value (load=0) or take in.
+    Mux(a=dffOut , b=in , sel=load , out=muxOut );
+    DFF(in=muxOut , out=dffOut , out=out );
 }
