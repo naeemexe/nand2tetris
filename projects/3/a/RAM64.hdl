@@ -13,5 +13,18 @@ CHIP RAM64 {
     OUT out[16];
 
     PARTS:
-    //// Replace this comment with your code.
+    // Same trick as RAM8, one level up: the top 3 address bits choose which
+    // RAM8 bank, the remaining bits are passed down into that bank.
+    DMux8Way(in=load , sel=address[3..5] , a=ld0 , b=ld1 , c=ld2 , d=ld3 , e=ld4 , f=ld5 , g=ld6 , h=ld7 );
+
+    RAM8(in=in , load=ld0 , address=address[0..2] , out=r0 );
+    RAM8(in=in , load=ld1 , address=address[0..2] , out=r1 );
+    RAM8(in=in , load=ld2 , address=address[0..2] , out=r2 );
+    RAM8(in=in , load=ld3 , address=address[0..2] , out=r3 );
+    RAM8(in=in , load=ld4 , address=address[0..2] , out=r4 );
+    RAM8(in=in , load=ld5 , address=address[0..2] , out=r5 );
+    RAM8(in=in , load=ld6 , address=address[0..2] , out=r6 );
+    RAM8(in=in , load=ld7 , address=address[0..2] , out=r7 );
+
+    Mux8Way16(a=r0 , b=r1 , c=r2 , d=r3 , e=r4 , f=r5 , g=r6 , h=r7 , sel=address[3..5] , out=out );
 }

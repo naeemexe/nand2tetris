@@ -13,5 +13,18 @@ CHIP RAM8 {
     OUT out[16];
 
     PARTS:
-    //// Replace this comment with your code.
+    // Writing: DMux routes the load signal to exactly one register.
+    DMux8Way(in=load , sel=address , a=ld0 , b=ld1 , c=ld2 , d=ld3 , e=ld4 , f=ld5 , g=ld6 , h=ld7 );
+
+    Register(in=in , load=ld0 , out=r0 );
+    Register(in=in , load=ld1 , out=r1 );
+    Register(in=in , load=ld2 , out=r2 );
+    Register(in=in , load=ld3 , out=r3 );
+    Register(in=in , load=ld4 , out=r4 );
+    Register(in=in , load=ld5 , out=r5 );
+    Register(in=in , load=ld6 , out=r6 );
+    Register(in=in , load=ld7 , out=r7 );
+
+    // Reading: every register is always outputting; the Mux picks one.
+    Mux8Way16(a=r0 , b=r1 , c=r2 , d=r3 , e=r4 , f=r5 , g=r6 , h=r7 , sel=address , out=out );
 }
