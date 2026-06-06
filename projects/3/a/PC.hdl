@@ -14,5 +14,14 @@ CHIP PC {
     OUT out[16];
     
     PARTS:
-    //// Replace this comment with your code.
+    // Compute the "next" value with a chain of Muxes. The order matters:
+    // the LAST Mux in the chain wins, so it encodes the highest priority.
+    //   inc  < load < reset
+    Inc16(in=current , out=plusOne );
+    Mux16(a=current , b=plusOne , sel=inc , out=afterInc );
+    Mux16(a=afterInc , b=in , sel=load , out=afterLoad );
+    Mux16(a=afterLoad , b=false , sel=reset , out=next );
+
+    // Always load: when nothing is asserted "next" is just "current" again.
+    Register(in=next , load=true , out=current , out=out );
 }
