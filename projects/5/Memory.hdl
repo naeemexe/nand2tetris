@@ -25,5 +25,17 @@ CHIP Memory {
     OUT out[16];
 
     PARTS:
-	//// Replace this comment with your code.
+	// Address map, looking only at the top two bits (address[14], address[13]):
+	//   0x  -> RAM16K   (0x0000-0x3FFF)
+	//   10  -> Screen   (0x4000-0x5FFF)
+	//   11  -> Keyboard (0x6000)
+	// Same pattern as the RAM chips: DMux the load, Mux the outputs.
+	DMux(in=load , sel=address[14] , a=loadRam , b=loadIO );
+	DMux(in=loadIO , sel=address[13] , a=loadScreen , b=loadKbd );   // loadKbd unused: keyboard is read-only
+
+	RAM16K(in=in , load=loadRam , address=address[0..13] , out=ramOut );
+	Screen(in=in , load=loadScreen , address=address[0..12] , out=screenOut );
+	Keyboard(out=kbdOut );
+
+	Mux4Way16(a=ramOut , b=ramOut , c=screenOut , d=kbdOut , sel=address[13..14] , out=out );
 }
