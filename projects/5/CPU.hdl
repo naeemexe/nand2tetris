@@ -32,5 +32,49 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-	//// Replace this comment with your code.
+	// ---- Decode ----------------------------------------------------------
+	// instruction[15] = 0 -> A-instruction  "@value"  (load value into A)
+	// instruction[15] = 1 -> C-instruction  "dest=comp;jump"
+	//   bits: 1 1 1 a  c1 c2 c3 c4 c5 c6  d1 d2 d3  j1 j2 j3
+	//   index:15      12 11 10  9  8  7  6   5  4  3   2  1  0
+	Not(in=instruction[15] , out=isA );
+	And(a=instruction[15] , b=true , out=isC );
+
+	// ---- A register ------------------------------------------------------
+	// A gets either the instruction itself (A-instr) or the ALU result (C-instr, d1).
+	Mux16(a=instruction , b=aluOut , sel=isC , out=aIn );
+	And(a=isC , b=instruction[5] , out=cWritesA );
+	Or(a=isA , b=cWritesA , out=loadA );
+	ARegister(in=aIn , load=loadA , out=aOut , out[0..14]=addressM );
+
+	// ---- D register ------------------------------------------------------
+	And(a=isC , b=instruction[4] , out=loadD );
+	DRegister(in=aluOut , load=loadD , out=dOut );
+
+	// ---- ALU -------------------------------------------------------------
+	// The "a" bit picks the second operand: A itself (a=0) or M = RAM[A] (a=1).
+	Mux16(a=aOut , b=inM , sel=instruction[12] , out=aOrM );
+	ALU(x=dOut , y=aOrM ,
+	    zx=instruction[11] , nx=instruction[10] , zy=instruction[9] ,
+	    ny=instruction[8] , f=instruction[7] , no=instruction[6] ,
+	    out=aluOut , out=outM , zr=zr , ng=ng );
+
+	// ---- Memory write ----------------------------------------------------
+	And(a=isC , b=instruction[3] , out=writeM );
+
+	// ---- Jump logic ------------------------------------------------------
+	// The ALU tells us if out < 0 (ng) or out == 0 (zr); out > 0 is "neither".
+	// j1 = jump if <0, j2 = jump if ==0, j3 = jump if >0. Any match -> jump.
+	Or(a=zr , b=ng , out=zeroOrNeg );
+	Not(in=zeroOrNeg , out=pos );
+	And(a=instruction[2] , b=ng , out=jlt );
+	And(a=instruction[1] , b=zr , out=jeq );
+	And(a=instruction[0] , b=pos , out=jgt );
+	Or(a=jlt , b=jeq , out=jle );
+	Or(a=jle , b=jgt , out=jumpWanted );
+	And(a=isC , b=jumpWanted , out=jump );     // A-instructions never jump
+
+	// ---- Program counter -------------------------------------------------
+	// Jump: PC = A.  Otherwise PC++.  reset beats both (PC's own priority).
+	PC(in=aOut , load=jump , inc=true , reset=reset , out[0..14]=pc );
 }
