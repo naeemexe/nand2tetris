@@ -18,5 +18,11 @@ CHIP Computer {
     IN reset;
 
     PARTS:
-    //// Replace this comment with your code.
+    // The whole computer is just three parts wired in a loop:
+    //   ROM feeds instructions to the CPU, the CPU tells ROM which one is next,
+    //   and the CPU reads/writes data through Memory.
+    ROM32K(address=pc , out=instruction );
+    CPU(inM=memOut , instruction=instruction , reset=reset ,
+        outM=outM , writeM=writeM , addressM=addressM , pc=pc );
+    Memory(in=outM , load=writeM , address=addressM , out=memOut );
 }
