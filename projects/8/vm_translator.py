@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-VM translator, stage 1 (Nand2Tetris project 7: stack arithmetic + memory access).
+VM translator (Nand2Tetris projects 7 + 8).
 
     python3 vm_translator.py Prog.vm      ->  Prog.asm
+    python3 vm_translator.py ProgDir/     ->  ProgDir/ProgDir.asm   (all .vm files)
 
 Translates the stack-based VM language into Hack assembly.
 
@@ -18,10 +19,12 @@ Memory layout the generated code relies on:
     RAM[16-255]   static variables (assembler gives them out as @File.i)
     RAM[256-]     the stack
 
-Design choice (my own, not required by the course): the three comparisons
-(eq/gt/lt) need jumps, so instead of pasting ~12 instructions with fresh
-labels at every use, each is emitted ONCE as a shared subroutine at the end
-of the program. A use site stores its return address in D and jumps there.
+Design choice (my own, not required by the course): call, return and the
+three comparisons (eq/gt/lt) are each emitted ONCE as shared subroutines
+at the end of the program. Every use site just stores a return address and
+jumps there. Inline versions are ~40-50 instructions per call/return; the
+shared ones cost ~10 at the call site. That's what lets the whole Jack OS +
+a game fit inside the 32K-word Hack ROM.
 """
 import sys
 from pathlib import Path
@@ -41,6 +44,7 @@ class Translator:
     def __init__(self):
         self.out: list[str] = []
         self.file = ""          # current .vm file name (for statics)
+        self.function = ""      # current function (for label scoping)
         self.counter = 0        # makes return labels unique
 
     def emit(self, *lines):
@@ -49,6 +53,11 @@ class Translator:
     def unique(self, prefix):
         self.counter += 1
         return f"{prefix}.{self.counter}"
+
+    # ---- bootstrap ------------------------------------------------------
+    def bootstrap(self):
+        self.emit("// bootstrap: SP = 256; call Sys.init", "@256", "D=A", "@SP", "M=D")
+        self.write_call("Sys.init", 0)
 
     # ---- push / pop -----------------------------------------------------
     def address_of(self, segment, index):
@@ -103,6 +112,42 @@ class Translator:
         else:
             raise ValueError(f"unknown command '{op}'")
 
+    # ---- program flow (project 8) ---------------------------------------
+    def scoped(self, label):
+        return f"{self.function}${label}" if self.function else label
+
+    def write_label(self, label):
+        self.emit(f"({self.scoped(label)})")
+
+    def write_goto(self, label):
+        self.emit(f"@{self.scoped(label)}", "0;JMP")
+
+    def write_if(self, label):
+        # pop; jump if the value is anything but 0 (VM "true" is -1, but any non-zero counts)
+        self.emit(*POP_D, f"@{self.scoped(label)}", "D;JNE")
+
+    # ---- functions (project 8) ------------------------------------------
+    def write_function(self, name, n_locals):
+        self.function = name
+        self.emit(f"({name})")
+        if n_locals:
+            # Zero n_locals consecutive slots starting at SP, then bump SP once.
+            self.emit("@SP", "A=M")
+            for i in range(n_locals):
+                self.emit("M=0", "A=A+1")
+            self.emit("D=A", "@SP", "M=D")
+
+    def write_call(self, name, n_args):
+        ret = self.unique(f"{self.function or 'boot'}$ret")
+        self.emit(f"// call {name} {n_args}",
+                  f"@{n_args}", "D=A", "@R13", "M=D",        # R13 = nArgs
+                  f"@{name}", "D=A", "@R14", "M=D",          # R14 = function address
+                  f"@{ret}", "D=A", "@$$CALL", "0;JMP",      # D   = return address
+                  f"({ret})")
+
+    def write_return(self):
+        self.emit("@$$RETURN", "0;JMP")
+
     # ---- shared subroutines ---------------------------------------------
     def write_runtime(self):
         self.emit("// ---- end of program: park here so we never fall into the runtime",
@@ -120,9 +165,30 @@ class Translator:
                       f"({name}.TRUE)", "@SP", "A=M-1", "M=-1",
                       "@R15", "A=M", "0;JMP")
 
+        # call: D = return address, R13 = nArgs, R14 = function address
+        self.emit("// $$CALL: push frame, reposition ARG and LCL, jump",
+                  "($$CALL)", *PUSH_D)                     # push return address
+        for ptr in ("LCL", "ARG", "THIS", "THAT"):
+            self.emit(f"@{ptr}", "D=M", *PUSH_D)
+        self.emit("@SP", "D=M", "@R13", "D=D-M", "@5", "D=D-A", "@ARG", "M=D",  # ARG = SP-5-nArgs
+                  "@SP", "D=M", "@LCL", "M=D",                                  # LCL = SP
+                  "@R14", "A=M", "0;JMP")
+
+        # return
+        self.emit("// $$RETURN: restore caller's frame",
+                  "($$RETURN)",
+                  "@LCL", "D=M", "@R13", "M=D",                     # frame = LCL
+                  "@5", "A=D-A", "D=M", "@R14", "M=D",              # ret = *(frame-5)
+                  *POP_D, "@ARG", "A=M", "M=D",                     # *ARG = return value
+                  "@ARG", "D=M+1", "@SP", "M=D")                    # SP = ARG + 1
+        for ptr in ("THAT", "THIS", "ARG", "LCL"):
+            self.emit("@R13", "AM=M-1", "D=M", f"@{ptr}", "M=D")    # restore, walking down
+        self.emit("@R14", "A=M", "0;JMP")
+
     # ---- driver ---------------------------------------------------------
     def translate_file(self, path: Path):
         self.file = path.stem
+        self.function = ""
         for number, raw in enumerate(path.read_text().splitlines(), start=1):
             line = raw.split("//", 1)[0].strip()
             if not line:
@@ -135,6 +201,18 @@ class Translator:
                     self.write_push(parts[1], int(parts[2]))
                 elif cmd == "pop":
                     self.write_pop(parts[1], int(parts[2]))
+                elif cmd == "label":
+                    self.write_label(parts[1])
+                elif cmd == "goto":
+                    self.write_goto(parts[1])
+                elif cmd == "if-goto":
+                    self.write_if(parts[1])
+                elif cmd == "function":
+                    self.write_function(parts[1], int(parts[2]))
+                elif cmd == "call":
+                    self.write_call(parts[1], int(parts[2]))
+                elif cmd == "return":
+                    self.write_return()
                 else:
                     self.write_arithmetic(cmd)
             except (ValueError, IndexError) as err:
@@ -143,8 +221,17 @@ class Translator:
 
 def translate(target: Path) -> Path:
     t = Translator()
-    out = target.with_suffix(".asm")
-    t.translate_file(target)
+    if target.is_dir():
+        files = sorted(target.glob("*.vm"))
+        out = target / f"{target.name}.asm"
+        # Only a full program (one that has Sys.init) gets the bootstrap.
+        if any(f.stem == "Sys" for f in files):
+            t.bootstrap()
+    else:
+        files = [target]
+        out = target.with_suffix(".asm")
+    for f in files:
+        t.translate_file(f)
     t.write_runtime()
     out.write_text("\n".join(t.out) + "\n")
     return out
@@ -152,7 +239,7 @@ def translate(target: Path) -> Path:
 
 def main():
     if len(sys.argv) != 2:
-        sys.exit("usage: vm_translator.py File.vm")
+        sys.exit("usage: vm_translator.py (File.vm | Directory)")
     out = translate(Path(sys.argv[1]).resolve())
     print(f"-> {out}")
 
