@@ -6,28 +6,116 @@
  * This library provides two services: direct access to the computer's main
  * memory (RAM), and allocation and recycling of memory blocks. The Hack RAM
  * consists of 32,768 words, each holding a 16-bit binary number.
- */ 
+ *
+ * Heap design (2048..16383):
+ *   Every block, used or free, starts with a 1-word header holding its
+ *   size (usable words, header not counted). The caller gets block+1.
+ *
+ *       block[0] = size        <- header
+ *       block[1] = next free   <- only meaningful while the block is free
+ *       ...
+ *
+ *   Free blocks form a singly linked list kept SORTED BY ADDRESS. That
+ *   makes deAlloc a little slower (it has to walk to the right spot) but
+ *   lets it merge a freed block with its neighbours, so the heap doesn't
+ *   shatter into tiny unusable pieces over time.
+ */
 class Memory {
+
+    static Array ram;
+    static int freeList;    // address of the first free block (0 = none)
 
     /** Initializes the class. */
     function void init() {
+        let ram = 0;        // Array 'ram' now starts at address 0: ram[i] is RAM[i]
+        let freeList = 2048;
+        let ram[2048] = 16384 - 2048 - 1;   // one big free block: whole heap minus its header
+        let ram[2049] = 0;
+        return;
     }
 
     /** Returns the RAM value at the given address. */
     function int peek(int address) {
+        return ram[address];
     }
 
     /** Sets the RAM value at the given address to the given value. */
     function void poke(int address, int value) {
+        let ram[address] = value;
+        return;
     }
 
     /** Finds an available RAM block of the given size and returns
-     *  a reference to its base address. */
+     *  a reference to its base address. (First fit.) */
     function int alloc(int size) {
+        var int prev, block, carved;
+
+        if (size < 1) {
+            let size = 1;   // a zero-size block would have no room for the 'next' link when freed
+        }
+
+        let prev = 0;
+        let block = freeList;
+        while (~(block = 0)) {
+            if (~(ram[block] < (size + 2))) {
+                // Big enough to split: carve the new block off the END of this
+                // free block, so the free block keeps its place in the list.
+                let ram[block] = ram[block] - (size + 1);
+                let carved = block + 1 + ram[block];
+                let ram[carved] = size;
+                return carved + 1;
+            }
+            if (~(ram[block] < size)) {
+                // Fits, but splitting would leave a useless crumb: hand over the whole block.
+                if (prev = 0) {
+                    let freeList = ram[block + 1];
+                } else {
+                    let ram[prev + 1] = ram[block + 1];
+                }
+                return block + 1;
+            }
+            let prev = block;
+            let block = ram[block + 1];
+        }
+
+        do Sys.error(6);    // heap overflow
+        return 0;
     }
 
     /** De-allocates the given object (cast as an array) by making
      *  it available for future allocations. */
     function void deAlloc(Array o) {
-    }    
+        var int block, prev, next;
+
+        let block = o - 1;
+
+        // Find the neighbours in address order: prev < block < next.
+        let prev = 0;
+        let next = freeList;
+        while ((~(next = 0)) & (next < block)) {
+            let prev = next;
+            let next = ram[next + 1];
+        }
+
+        // Merge with the following free block if they touch.
+        if ((~(next = 0)) & ((block + 1 + ram[block]) = next)) {
+            let ram[block] = ram[block] + 1 + ram[next];
+            let ram[block + 1] = ram[next + 1];
+        } else {
+            let ram[block + 1] = next;
+        }
+
+        // Link in after prev - or merge into prev if they touch.
+        if (prev = 0) {
+            let freeList = block;
+        } else {
+            if ((prev + 1 + ram[prev]) = block) {
+                let ram[prev] = ram[prev] + 1 + ram[block];
+                let ram[prev + 1] = ram[block + 1];
+            } else {
+                let ram[prev + 1] = block;
+            }
+        }
+        return;
+    }
 }
