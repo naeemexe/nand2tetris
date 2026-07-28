@@ -4,39 +4,180 @@
 // File name: projects/12/Screen.jack
 /**
  * A library of functions for displaying graphics on the screen.
- * The Hack physical screen consists of 512 rows (indexed 0..511, top to bottom)
- * of 256 pixels each (indexed 0..255, left to right). The top left pixel on 
+ * The Hack physical screen consists of 256 rows (indexed 0..255, top to bottom)
+ * of 512 pixels each (indexed 0..511, left to right). The top left pixel on
  * the screen is indexed (0,0).
+ *
+ * Memory map: each row is 32 words (32 x 16 = 512 pixels), so pixel (x, y)
+ * lives in word  SCREEN + 32*y + x/16,  at bit  x % 16  (bit 0 = leftmost).
  */
 class Screen {
 
+    static Array screen;
+    static boolean color;
+
     /** Initializes the Screen. */
     function void init() {
+        let screen = 16384;
+        let color = true;
+        return;
     }
 
     /** Erases the entire screen. */
     function void clearScreen() {
+        var int i;
+        let i = 0;
+        while (i < 8192) {
+            let screen[i] = 0;
+            let i = i + 1;
+        }
+        return;
     }
 
     /** Sets the current color, to be used for all subsequent drawXXX commands.
      *  Black is represented by true, white by false. */
     function void setColor(boolean b) {
+        let color = b;
+        return;
     }
 
     /** Draws the (x,y) pixel, using the current color. */
     function void drawPixel(int x, int y) {
+        var int address, mask;
+        if ((x < 0) | (x > 511) | (y < 0) | (y > 255)) {
+            do Sys.error(7);
+        }
+        let address = (y * 32) + (x / 16);
+        let mask = Math.twoToThe(x & 15);      // x & 15 == x % 16 for x >= 0
+        if (color) {
+            let screen[address] = screen[address] | mask;
+        } else {
+            let screen[address] = screen[address] & ~mask;
+        }
+        return;
     }
 
     /** Draws a line from pixel (x1,y1) to pixel (x2,y2), using the current color. */
     function void drawLine(int x1, int y1, int x2, int y2) {
+        var int dx, dy, sx, sy, err, e2;
+
+        if ((x1 < 0) | (x1 > 511) | (y1 < 0) | (y1 > 255) |
+            (x2 < 0) | (x2 > 511) | (y2 < 0) | (y2 > 255)) {
+            do Sys.error(8);
+        }
+
+        if (y1 = y2) {                          // horizontal: fill whole words at once
+            do Screen.drawHorizontal(Math.min(x1, x2), Math.max(x1, x2), y1);
+            return;
+        }
+
+        // Bresenham's line algorithm. dx, dy are the distances to cover, sx/sy
+        // the direction of each step. 'err' tracks how far the drawn pixels have
+        // drifted from the ideal line (scaled to stay an integer). Each step we
+        // move in x, in y, or in BOTH (a diagonal step) - whichever keeps the
+        // error smallest - so the line is exactly 1 pixel thick.
+        // Only additions and comparisons: no multiply or divide in the loop.
+        let dx = Math.abs(x2 - x1);
+        let dy = Math.abs(y2 - y1);
+        let sx = 1;
+        if (x2 < x1) {
+            let sx = -1;
+        }
+        let sy = 1;
+        if (y2 < y1) {
+            let sy = -1;
+        }
+        let err = dx - dy;
+        while (true) {
+            do Screen.drawPixel(x1, y1);
+            if ((x1 = x2) & (y1 = y2)) {
+                return;
+            }
+            let e2 = err + err;
+            if (e2 > (-dy)) {
+                let err = err - dy;
+                let x1 = x1 + sx;
+            }
+            if (e2 < dx) {
+                let err = err + dx;
+                let y1 = y1 + sy;
+            }
+        }
+        return;
+    }
+
+    /* Horizontal run x1..x2 (x1 <= x2) on row y, a whole word at a time
+     * in the middle and with bit masks on the two partial edge words. */
+    function void drawHorizontal(int x1, int x2, int y) {
+        var int rowStart, first, last, leftMask, rightMask, i;
+        let rowStart = y * 32;
+        let first = rowStart + (x1 / 16);
+        let last = rowStart + (x2 / 16);
+        let leftMask = ~(Math.twoToThe(x1 & 15) - 1);   // bits (x1%16)..15
+        if ((x2 & 15) = 15) {
+            let rightMask = -1;                          // all 16 bits
+        } else {
+            let rightMask = Math.twoToThe((x2 & 15) + 1) - 1;  // bits 0..(x2%16)
+        }
+
+        if (first = last) {
+            do Screen.applyMask(first, leftMask & rightMask);
+            return;
+        }
+        do Screen.applyMask(first, leftMask);
+        let i = first + 1;
+        while (i < last) {
+            let screen[i] = color;              // true = -1 = 16 black pixels
+            let i = i + 1;
+        }
+        do Screen.applyMask(last, rightMask);
+        return;
+    }
+
+    function void applyMask(int address, int mask) {
+        if (color) {
+            let screen[address] = screen[address] | mask;
+        } else {
+            let screen[address] = screen[address] & ~mask;
+        }
+        return;
     }
 
     /** Draws a filled rectangle whose top left corner is (x1, y1)
      *  and bottom right corner is (x2,y2), using the current color. */
     function void drawRectangle(int x1, int y1, int x2, int y2) {
+        var int y;
+        if ((x1 > x2) | (y1 > y2) | (x1 < 0) | (x2 > 511) | (y1 < 0) | (y2 > 255)) {
+            do Sys.error(9);
+        }
+        let y = y1;
+        while (~(y > y2)) {
+            do Screen.drawHorizontal(x1, x2, y);
+            let y = y + 1;
+        }
+        return;
     }
 
-    /** Draws a filled circle of radius r<=181 around (x,y), using the current color. */
+    /** Draws a filled circle of radius r<=181 around (x,y), using the current color.
+     *  For each row dy from -r to r, the circle is a horizontal chord of
+     *  half-width sqrt(r^2 - dy^2) (Pythagoras). r <= 181 keeps r^2 under 32767. */
     function void drawCircle(int x, int y, int r) {
+        var int dy, half, rSquared;
+        if ((x < 0) | (x > 511) | (y < 0) | (y > 255)) {
+            do Sys.error(12);
+        }
+        if ((r < 0) | (r > 181)) {
+            do Sys.error(13);
+        }
+        let rSquared = r * r;
+        let dy = -r;
+        while (~(dy > r)) {
+            if (~((y + dy) < 0) & ~((y + dy) > 255)) {     // clip rows that fall off screen
+                let half = Math.sqrt(rSquared - (dy * dy));
+                do Screen.drawHorizontal(Math.max(x - half, 0), Math.min(x + half, 511), y + dy);
+            }
+            let dy = dy + 1;
+        }
+        return;
     }
 }
