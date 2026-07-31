@@ -1,0 +1,70 @@
+/**
+ * The snake's body, stored as a RING BUFFER of cell coordinates.
+ *
+ * Moving a snake one step = add a new head cell + remove the tail cell.
+ * Shifting every segment along an array would cost O(length) per step;
+ * with a ring buffer both ends are O(1): 'head' walks forward around the
+ * array, and the tail is always 'length - 1' slots behind it.
+ *
+ * Cells are on a 64 x 30 grid of 8x8-pixel squares.
+ */
+class Snake {
+    field Array xs, ys;      // ring buffer of segment coordinates
+    field int capacity;
+    field int head;          // index of the head segment in xs/ys
+    field int length;
+
+    constructor Snake new(int x, int y, int maxLength) {
+        let capacity = maxLength;
+        let xs = Array.new(capacity);
+        let ys = Array.new(capacity);
+        let head = 0;
+        let length = 1;
+        let xs[0] = x;
+        let ys[0] = y;
+        return this;
+    }
+
+    method void dispose() {
+        do xs.dispose();
+        do ys.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method int headX() { return xs[head]; }
+    method int headY() { return ys[head]; }
+    method int length() { return length; }
+    method boolean isFull() { return length = capacity; }
+
+    /** Index of the tail segment (wraps around the buffer). */
+    method int tailIndex() {
+        var int i;
+        let i = head - (length - 1);
+        if (i < 0) {
+            let i = i + capacity;
+        }
+        return i;
+    }
+
+    method int tailX() { return xs[tailIndex()]; }
+    method int tailY() { return ys[tailIndex()]; }
+
+    /** Adds a new head at (x, y). The body grows by one. */
+    method void pushHead(int x, int y) {
+        let head = head + 1;
+        if (head = capacity) {
+            let head = 0;
+        }
+        let xs[head] = x;
+        let ys[head] = y;
+        let length = length + 1;
+        return;
+    }
+
+    /** Forgets the tail segment. Together with pushHead this is one move. */
+    method void dropTail() {
+        let length = length - 1;
+        return;
+    }
+}

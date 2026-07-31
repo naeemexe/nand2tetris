@@ -1,0 +1,26 @@
+/**
+ * Pseudo-random numbers with a linear congruential generator:
+ *     seed = seed * 25173 + 13849      (mod 2^16, which Hack does for free)
+ * The low bits of an LCG repeat quickly, so between() uses the high bits.
+ */
+class Random {
+    static int seed;
+
+    function void setSeed(int s) {
+        let seed = s;
+        return;
+    }
+
+    function int next() {
+        let seed = (seed * 25173) + 13849;
+        return seed;
+    }
+
+    /** Returns a number in 0 .. n-1 (n > 0). */
+    function int between(int n) {
+        var int r;
+        let r = Random.next() & 32767;   // drop the sign bit -> 0..32767
+        let r = r / 64;                  // keep the better-mixed high bits -> 0..511
+        return r - ((r / n) * n);        // r mod n
+    }
+}
