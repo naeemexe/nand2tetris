@@ -1,0 +1,31 @@
+/**
+ * Entry point. The title screen doubles as a source of randomness: the
+ * number of loop iterations before the player presses a key is different
+ * every time, so it makes a good seed.
+ */
+class Main {
+    function void main() {
+        var SnakeGame game;
+        var int ticks;
+
+        do Output.moveCursor(10, 22);
+        do Output.printString("S N A K E");
+        do Output.moveCursor(12, 14);
+        do Output.printString("arrows to steer, Q to quit");
+        do Output.moveCursor(14, 18);
+        do Output.printString("press any key to start");
+
+        let ticks = 0;
+        while (Keyboard.keyPressed() = 0) {
+            let ticks = ticks + 1;
+        }
+        while (~(Keyboard.keyPressed() = 0)) {}    // wait for release
+        do Random.setSeed(ticks);
+
+        do Screen.clearScreen();
+        let game = SnakeGame.new();
+        do game.run();
+        do game.dispose();
+        return;
+    }
+}

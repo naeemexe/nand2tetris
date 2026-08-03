@@ -1,0 +1,157 @@
+/**
+ * Snake. Arrow keys steer, Q quits.
+ *
+ * Screen: the play field is 64 x 30 cells of 8x8 pixels (512 x 240 px);
+ * the score line sits underneath in text row 22.
+ *
+ * Collision checks use an occupancy grid (one word per cell, 1 = snake).
+ * "Is this cell part of the snake?" is then a single array read instead of
+ * a walk along the whole body.
+ */
+class SnakeGame {
+    static int COLS, ROWS;
+
+    field Snake snake;
+    field Array grid;           // COLS*ROWS cells, 1 where the snake is
+    field int dx, dy;           // current direction
+    field int foodX, foodY;
+    field int score;
+    field boolean over;
+
+    constructor SnakeGame new() {
+        var int i;
+        let COLS = 64;
+        let ROWS = 30;
+        let grid = Array.new(COLS * ROWS);
+        let i = 0;
+        while (i < (COLS * ROWS)) {
+            let grid[i] = 0;
+            let i = i + 1;
+        }
+
+        let snake = Snake.new(10, 15, 256);
+        do occupy(10, 15, 1);
+        do drawCell(10, 15, true);
+        let dx = 1;
+        let dy = 0;
+        let score = 0;
+        let over = false;
+
+        do Screen.setColor(true);
+        do Screen.drawLine(0, 241, 511, 241);    // floor under the field
+        do placeFood();
+        do showScore();
+        return this;
+    }
+
+    method void dispose() {
+        do snake.dispose();
+        do grid.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method void occupy(int x, int y, int value) {
+        let grid[(y * COLS) + x] = value;
+        return;
+    }
+
+    method boolean occupied(int x, int y) {
+        return grid[(y * COLS) + x] = 1;
+    }
+
+    method void drawCell(int x, int y, boolean black) {
+        do Screen.setColor(black);
+        do Screen.drawRectangle(x * 8, y * 8, (x * 8) + 6, (y * 8) + 6);   // 1px gap looks like segments
+        return;
+    }
+
+    method void placeFood() {
+        // Retry until we land on an empty cell (the board is never nearly full).
+        let foodX = Random.between(COLS);
+        let foodY = Random.between(ROWS);
+        while (occupied(foodX, foodY)) {
+            let foodX = Random.between(COLS);
+            let foodY = Random.between(ROWS);
+        }
+        do Screen.setColor(true);
+        do Screen.drawCircle((foodX * 8) + 3, (foodY * 8) + 3, 3);
+        return;
+    }
+
+    method void showScore() {
+        do Output.moveCursor(22, 0);
+        do Output.printString("Score: ");
+        do Output.printInt(score);
+        return;
+    }
+
+    /** Arrow keys: 130 left, 131 up, 132 right, 133 down. Reversing onto yourself is ignored. */
+    method void steer(char key) {
+        if ((key = 130) & ~(dx = 1))  { let dx = -1; let dy = 0; }
+        if ((key = 132) & ~(dx = -1)) { let dx = 1;  let dy = 0; }
+        if ((key = 131) & ~(dy = 1))  { let dx = 0;  let dy = -1; }
+        if ((key = 133) & ~(dy = -1)) { let dx = 0;  let dy = 1; }
+        if ((key = 81) | (key = 113)) { let over = true; }      // Q / q
+        return;
+    }
+
+    /** One tick of the game: move the head, then either grow or move the tail. */
+    method void step() {
+        var int nx, ny, tx, ty;
+        let nx = snake.headX() + dx;
+        let ny = snake.headY() + dy;
+
+        if ((nx < 0) | (ny < 0) | ~(nx < COLS) | ~(ny < ROWS)) {
+            let over = true;            // hit a wall
+            return;
+        }
+
+        if ((nx = foodX) & (ny = foodY)) {
+            // Eat: the head moves forward and the tail stays -> one longer.
+            do drawCell(foodX, foodY, false);       // clear the round food dot
+            do snake.pushHead(nx, ny);
+            do occupy(nx, ny, 1);
+            do drawCell(nx, ny, true);
+            let score = score + 1;
+            do showScore();
+            if (snake.isFull()) {
+                let over = true;        // you won, the buffer is full
+                return;
+            }
+            do placeFood();
+            return;
+        }
+
+        // Normal move: free the tail FIRST, so chasing your own tail is legal.
+        let tx = snake.tailX();
+        let ty = snake.tailY();
+        do snake.dropTail();
+        do occupy(tx, ty, 0);
+        do drawCell(tx, ty, false);
+
+        if (occupied(nx, ny)) {
+            let over = true;            // bit yourself
+            return;
+        }
+        do snake.pushHead(nx, ny);
+        do occupy(nx, ny, 1);
+        do drawCell(nx, ny, true);
+        return;
+    }
+
+    method void run() {
+        var char key;
+        while (~over) {
+            let key = Keyboard.keyPressed();
+            if (~(key = 0)) {
+                do steer(key);
+            }
+            do step();
+            do Sys.wait(60);
+        }
+        do Output.moveCursor(10, 27);
+        do Output.printString("GAME OVER");
+        return;
+    }
+}
