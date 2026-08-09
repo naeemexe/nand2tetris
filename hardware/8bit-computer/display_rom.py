@@ -2,7 +2,7 @@
 """
 Generate the output-display EEPROM image (28C16, 2 KB).
 
-    python3 display_rom.py      ->  build/display.bin, arduino/eeprom_programmer/display.h
+    python3 display_rom.py      ->  build/display.bin, ../eeprom-programmer/eeprom_programmer/display.h
 
 The output register holds one byte, but four 7-segment digits need to
 show it in decimal. Doing binary -> decimal in logic gates is painful;
@@ -74,11 +74,11 @@ def main():
     image = build_image()
     (here / "build").mkdir(exist_ok=True)
     (here / "build" / "display.bin").write_bytes(image)
-    (here / "arduino" / "eeprom_programmer" / "display.h").write_text(c_header(image, "display"))
+    (here.parent / "eeprom-programmer" / "eeprom_programmer" / "display.h").write_text(c_header(image, "display"))
     print("value  unsigned  signed")
     for v in (0, 7, 42, 127, 128, 200, 255):
         print(f"{v:5}   '{digits_for(v, False)}'   '{digits_for(v, True)}'")
-    print("wrote build/display.bin and arduino/eeprom_programmer/display.h")
+    print("wrote build/display.bin and ../eeprom-programmer/eeprom_programmer/display.h")
 
 
 if __name__ == "__main__":

@@ -62,13 +62,13 @@ Both control EEPROMs hold the **same** 2 KB image; A7 is tied low on one chip
 | File | |
 |---|---|
 | `isa.py` | control signals + microcode table — the single source of truth |
-| `microcode.py` | builds `build/microcode.bin` and `arduino/eeprom_programmer/microcode.h` |
+| `microcode.py` | builds `build/microcode.bin` and the Arduino header |
 | `display_rom.py` | builds the 7-segment decoder image (unsigned + two's complement modes) |
 | `sim8.py` | cycle-level simulator that executes the **EEPROM image**, not the mnemonics |
 | `asm8.py` | assembler; prints the DIP-switch settings for loading RAM by hand |
 | `programs/` | add, add_sub, count, multiply, fibonacci, updown |
 | `tests/` | runs every program on the simulator and checks the output |
-| `arduino/eeprom_programmer/` | burns either image into a 28C16, with DATA-polling and verify |
+| [`../eeprom-programmer/`](../eeprom-programmer/) | Arduino sketch that burns these images (shared with the VGA card) |
 
 ```bash
 python3 microcode.py                       # print the microcode table, build the image

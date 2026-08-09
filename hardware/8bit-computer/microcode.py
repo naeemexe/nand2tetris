@@ -3,7 +3,7 @@
 Generate the control-logic EEPROM image (28C16, 2 KB) from isa.py.
 
     python3 microcode.py          ->  build/microcode.bin   (raw image)
-                                      arduino/eeprom_programmer/microcode.h
+                                      ../eeprom-programmer/eeprom_programmer/microcode.h
                                       prints the microcode table
 
 Both control EEPROMs get the SAME image. What makes them different is how
@@ -69,10 +69,10 @@ def main():
     out.mkdir(exist_ok=True)
     image = build_image()
     (out / "microcode.bin").write_bytes(image)
-    sketch = Path(__file__).parent / "arduino" / "eeprom_programmer"
+    sketch = Path(__file__).parent.parent / "eeprom-programmer" / "eeprom_programmer"
     (sketch / "microcode.h").write_text(c_header(image, "microcode"))
     print_table()
-    print(f"\nwrote build/microcode.bin and arduino/eeprom_programmer/microcode.h ({len(image)} bytes)")
+    print(f"\nwrote build/microcode.bin and ../eeprom-programmer/eeprom_programmer/microcode.h ({len(image)} bytes)")
 
 
 if __name__ == "__main__":

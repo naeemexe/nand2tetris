@@ -1,29 +1,40 @@
 /*
- * 28C16 EEPROM programmer for an Arduino Nano/Uno.
+ * EEPROM programmer for an Arduino Nano/Uno: 28C16 (2 KB) and 28C256 (32 KB).
  *
  * The image to burn is NOT computed here. It comes from a header generated
- * by the Python scripts (microcode.py / display_rom.py), which are the same
- * scripts the simulator tests - so what you burn is what you tested.
+ * by the Python scripts, which are the same scripts the simulators test -
+ * so what you burn is what you tested:
  *
- *   1. python3 microcode.py      (or display_rom.py)
- *   2. pick the image below, upload, open the Serial Monitor at 115200
+ *   ../8bit-computer/microcode.py     -> microcode.h   (28C16, control logic)
+ *   ../8bit-computer/display_rom.py   -> display.h     (28C16, 7-segment decoder)
+ *   ../vga-card/image_to_rom.py       -> vga_image.h   (28C256, the picture)
+ *
+ * Pick the image below, upload, open the Serial Monitor at 115200.
  *
  * Wiring
- *   Address: two 74HC595 shift registers in a chain (11 address lines needed,
- *            16 available). The very last output (bit 15) drives the
- *            EEPROM's /OE pin, so reading/writing is controlled from here too.
+ *   Address: two 74HC595 shift registers in a chain = 16 outputs. Bits 0..14
+ *            go to A0..A14 (a 28C16 only uses A0..A10). The last output
+ *            (bit 15) drives the EEPROM's /OE pin.
  *       pin 2 -> SER (data)   pin 3 -> SRCLK   pin 4 -> RCLK (latch)
  *   Data:    pins 5..12 -> EEPROM I/O0..I/O7
  *   Write:   pin 13 -> EEPROM /WE  (active low; idle HIGH)
  *   /CE of the EEPROM tied to GND.
+ *
+ * 28C256 note: many ship with Software Data Protection enabled, and then
+ * writes silently don't stick (verify fails everywhere). Unlocking needs a
+ * timed 6-byte command sequence that this slow shiftOut() wiring can't hit;
+ * the easiest fix is to clear it once with a TL866/T48 programmer.
  */
 
-#define BURN_MICROCODE 1      // 1 = control logic microcode, 0 = 7-segment display decoder
+// Which image to burn: 1 = control microcode, 2 = 7-segment decoder, 3 = VGA picture
+#define IMAGE_CHOICE 1
 
-#if BURN_MICROCODE
+#if IMAGE_CHOICE == 1
 #include "microcode.h"
-#else
+#elif IMAGE_CHOICE == 2
 #include "display.h"
+#else
+#include "vga_image.h"
 #endif
 
 const int SHIFT_DATA = 2;
@@ -34,7 +45,7 @@ const int WRITE_EN = 13;
 
 // Put the address on A0..A10 and decide whether the EEPROM drives the data pins.
 void setAddress(unsigned int address, bool outputEnable) {
-  byte high = (address >> 8) & 0x07;
+  byte high = (address >> 8) & 0x7F;      // A8..A14
   if (!outputEnable) high |= 0x80;          // bit 15 -> /OE, high = outputs off
   shiftOut(SHIFT_DATA, SHIFT_CLK, MSBFIRST, high);
   shiftOut(SHIFT_DATA, SHIFT_CLK, MSBFIRST, address & 0xFF);
