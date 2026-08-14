@@ -64,6 +64,17 @@ def test_microcode_has_no_bus_conflicts():
                 assert len(drivers) <= 1, (opcode, flags, drivers)
 
 
+def test_nothing_latches_an_undriven_bus():
+    from isa import BUS_DRIVERS, SIGNALS, micro_steps
+    readers = ("MI", "RI", "II", "AI", "BI", "OI", "J")
+    for opcode in range(16):
+        for flags in range(4):
+            for word in micro_steps(opcode, flags):
+                on = {s for s, b in SIGNALS.items() if word >> b & 1}
+                if on & set(readers):
+                    assert on & set(BUS_DRIVERS), (opcode, flags, on)
+
+
 def test_image_layout():
     # LDA, step T2 = IO|MI: high chip byte has MI (bit 14 -> 0x40) + IO (bit 11 -> 0x08)
     addr_high = (0 << 8) | (0 << 7) | (0b0001 << 3) | 2

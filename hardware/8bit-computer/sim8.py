@@ -66,7 +66,9 @@ class Computer:
 
         sum_, carry, zero = self.alu("SU" in on)
 
-        # --- the bus: exactly one driver or none (pull-down resistors -> 0)
+        # --- the bus: exactly one driver or none. An undriven bus has no defined
+        # value (floating LS inputs tend to read high), but the microcode never
+        # latches it in that state (tests check this), so 0 is as good as any.
         drivers = [s for s in BUS_DRIVERS if s in on]
         if len(drivers) > 1:
             raise BusConflict(f"step {self.step}: {drivers} drive the bus together")
