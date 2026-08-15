@@ -10,4 +10,4 @@ python3 ../8/vm_translator.py StackArithmetic/SimpleAdd/SimpleAdd.vm
 ```
 
 What project 7 covers inside that file: `write_push`, `write_pop`, `write_arithmetic`
-and the shared `$$EQ/$$GT/$$LT` routines. See `notes/04-vm-translator.md`.
+and the shared `$$EQ/$$GT/$$LT` routines. See [`notes/07-vm-translator.md`](../../notes/07-vm-translator.md).
