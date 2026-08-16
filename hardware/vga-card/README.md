@@ -5,7 +5,7 @@ Generates **800×600 @ 60 Hz** VGA timing from a **10 MHz** oscillator using
 an EEPROM through a resistor DAC. Inspired by Ben Eater's video card
 ([eater.net/vga](https://eater.net/vga)); the timing derivation, decoder design,
 pixel-latch pipeline and all the tools here are worked out from the VESA spec in
-this repo. The full explanation is in [`notes/09-vga-card.md`](../../notes/09-vga-card.md).
+this repo. The full explanation is in [`notes/11-vga-card.md`](../../notes/11-vga-card.md).
 
 ![simulated monitor output](build/frame.png)
 
