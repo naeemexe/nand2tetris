@@ -4,7 +4,7 @@ A SAP-style 8-bit computer built from 74LS-series logic on breadboards, followin
 Ben Eater's series ([eater.net/8bit](https://eater.net/8bit)). The hardware design
 is his; the software in this folder (microcode generator, simulator, assembler,
 EEPROM programmer, display ROM) is written from scratch for this repo, and the
-step-by-step explanation is in [`notes/08-8bit-computer.md`](../../notes/08-8bit-computer.md).
+step-by-step explanation is in [`notes/10-8bit-computer.md`](../../notes/10-8bit-computer.md).
 
 ```
             ┌──────── 8-bit bus ────────┐
